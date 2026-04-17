@@ -18,6 +18,16 @@ const wellsDepthInput = kpForm.elements.wellsDepth;
 const wellsPricePerMeterInput = kpForm.elements.wellsPricePerMeter;
 const wellsPriceInput = kpForm.elements.wellsPrice;
 
+const contractInnInput = contractForm.elements.customerInn;
+const contractBikInput = contractForm.elements.customerBik;
+const contractInnStatus = document.getElementById("contract-inn-status");
+const contractBikStatus = document.getElementById("contract-bik-status");
+
+let innLookupTimer = null;
+let bikLookupTimer = null;
+let innLookupToken = 0;
+let bikLookupToken = 0;
+
 function setStatus(obj) {
   statusEl.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
 }
@@ -68,6 +78,152 @@ function recalcWellPrice() {
 wellsDepthInput.addEventListener("input", recalcWellPrice);
 wellsPricePerMeterInput.addEventListener("input", recalcWellPrice);
 
+function httpErrorMessage(data, fallback) {
+  if (!data) {
+    return fallback;
+  }
+  if (typeof data.detail === "string") {
+    return data.detail;
+  }
+  if (Array.isArray(data.detail) && data.detail.length) {
+    const first = data.detail[0];
+    if (first && typeof first.msg === "string") {
+      return first.msg;
+    }
+  }
+  return data.error || data.message || fallback;
+}
+
+async function getJSON(url) {
+  const response = await fetch(url, { method: "GET" });
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!response.ok) {
+    throw new Error(httpErrorMessage(data, `Request failed (${response.status})`));
+  }
+  return data;
+}
+
+function applyCompanyFields(company) {
+  if (!company) {
+    return;
+  }
+  const mapping = [
+    ["customerFullname", company.customerFullname],
+    ["customerShortname", company.customerShortname],
+    ["customerAddress", company.customerAddress],
+    ["customerOgrn", company.customerOgrn],
+    ["customerInn", company.customerInn],
+    ["customerKpp", company.customerKpp],
+    ["customerPhone", company.customerPhone],
+    ["customerEmail", company.customerEmail],
+    ["customerDirectorTitle", company.customerDirectorTitle],
+    ["customerDirectorName", company.customerDirectorName],
+    ["customerBasis", company.customerBasis]
+  ];
+  for (const [name, value] of mapping) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    const el = contractForm.elements[name];
+    if (el) {
+      el.value = String(value);
+    }
+  }
+}
+
+function scheduleCompanyLookup() {
+  if (innLookupTimer) {
+    clearTimeout(innLookupTimer);
+  }
+  innLookupTimer = setTimeout(() => {
+    innLookupTimer = null;
+    maybeLookupCompanyByInn();
+  }, 450);
+}
+
+async function maybeLookupCompanyByInn() {
+  const raw = contractInnInput.value.trim();
+  const digits = raw.replace(/\D/g, "");
+  contractInnInput.value = digits;
+
+  if (digits.length !== 10 && digits.length !== 12) {
+    contractInnStatus.textContent = "";
+    return;
+  }
+
+  const token = ++innLookupToken;
+  contractInnStatus.textContent = "Загрузка данных по ИНН...";
+
+  try {
+    const result = await getJSON(`/api/lookup/company?inn=${encodeURIComponent(digits)}`);
+    if (token !== innLookupToken) {
+      return;
+    }
+    applyCompanyFields(result.company);
+    contractInnStatus.textContent = result.company?.customerShortname
+      ? `Данные загружены: ${result.company.customerShortname}`
+      : "Данные загружены";
+  } catch (err) {
+    if (token !== innLookupToken) {
+      return;
+    }
+    contractInnStatus.textContent = `Ошибка: ${err.message}`;
+  }
+}
+
+function scheduleBankLookup() {
+  if (bikLookupTimer) {
+    clearTimeout(bikLookupTimer);
+  }
+  bikLookupTimer = setTimeout(() => {
+    bikLookupTimer = null;
+    maybeLookupBankByBik();
+  }, 350);
+}
+
+async function maybeLookupBankByBik() {
+  const raw = contractBikInput.value.trim();
+  const digits = raw.replace(/\D/g, "");
+  contractBikInput.value = digits;
+
+  if (digits.length !== 9) {
+    contractBikStatus.textContent = "";
+    return;
+  }
+
+  const token = ++bikLookupToken;
+  contractBikStatus.textContent = "Поиск банка по БИК...";
+
+  try {
+    const result = await getJSON(`/api/lookup/bank?bic=${encodeURIComponent(digits)}`);
+    if (token !== bikLookupToken) {
+      return;
+    }
+    if (result.bank?.customerBank) {
+      contractForm.elements.customerBank.value = String(result.bank.customerBank);
+    }
+    if (result.bank?.customerKs && !contractForm.elements.customerKs.value.trim()) {
+      contractForm.elements.customerKs.value = String(result.bank.customerKs);
+    }
+    contractBikStatus.textContent = result.bank?.customerBank
+      ? `✓ ${String(result.bank.customerBank).slice(0, 48)}`
+      : "Банк найден";
+  } catch (err) {
+    if (token !== bikLookupToken) {
+      return;
+    }
+    contractBikStatus.textContent = `Ошибка: ${err.message}`;
+  }
+}
+
+contractInnInput.addEventListener("input", scheduleCompanyLookup);
+contractBikInput.addEventListener("input", scheduleBankLookup);
+
 async function postJSON(url, payload) {
   const response = await fetch(url, {
     method: "POST",
@@ -81,10 +237,7 @@ async function postJSON(url, payload) {
     data = null;
   }
   if (!response.ok) {
-    const message =
-      (data && (data.error || data.detail || data.message)) ||
-      `Request failed (${response.status})`;
-    throw new Error(message);
+    throw new Error(httpErrorMessage(data, `Request failed (${response.status})`));
   }
   return data;
 }

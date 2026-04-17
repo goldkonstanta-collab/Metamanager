@@ -149,18 +149,20 @@
               <input name="customerOgrn" />
             </label>
             <label>ИНН
-              <input name="customerInn" />
+              <input name="customerInn" inputmode="numeric" autocomplete="off" />
             </label>
           </div>
+          <p id="contract-inn-status" class="hint" aria-live="polite"></p>
 
           <div class="inline">
             <label>КПП
               <input name="customerKpp" />
             </label>
             <label>БИК
-              <input name="customerBik" />
+              <input name="customerBik" inputmode="numeric" autocomplete="off" />
             </label>
           </div>
+          <p id="contract-bik-status" class="hint" aria-live="polite"></p>
 
           <div class="inline">
             <label>Банк

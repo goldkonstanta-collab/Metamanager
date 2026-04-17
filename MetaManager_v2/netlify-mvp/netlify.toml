@@ -14,3 +14,13 @@
   from = "/api/contract"
   to = "/.netlify/functions/generate-contract"
   status = 200
+
+[[redirects]]
+  from = "/api/lookup/company"
+  to = "/.netlify/functions/lookup-company"
+  status = 200
+
+[[redirects]]
+  from = "/api/lookup/bank"
+  to = "/.netlify/functions/lookup-bank"
+  status = 200
