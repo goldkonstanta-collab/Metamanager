@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-requests
-python-docx
-lxml
-docx2pdf
