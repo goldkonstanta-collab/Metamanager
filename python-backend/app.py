@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import tempfile
+import importlib.util
 from pathlib import Path
 from typing import Any, Dict
 
@@ -63,6 +64,27 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on", "да"}
 
 
+def _load_attr_from_file(file_path: Path, attr_name: str):
+    """
+    Загружает атрибут (класс/функцию) из python-файла по абсолютному пути.
+    Используем для устойчивой работы на хостингах, где PYTHONPATH может отличаться.
+    """
+    if not file_path.exists():
+        raise RuntimeError(f"File not found: {file_path}")
+
+    module_name = f"_dynamic_{file_path.stem}"
+    spec = importlib.util.spec_from_file_location(module_name, str(file_path))
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot create import spec for {file_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    if not hasattr(module, attr_name):
+        raise RuntimeError(f"{attr_name} not found in {file_path.name}")
+    return getattr(module, attr_name)
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     return {
@@ -84,7 +106,7 @@ def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
     temp_dir = tempfile.mkdtemp(prefix="metamanager_kp_")
     try:
         try:
-            from generator import KPGenerator
+            KPGenerator = _load_attr_from_file(ROOT_DIR / "generator.py", "KPGenerator")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Import KPGenerator failed: {e}")
 
@@ -159,7 +181,10 @@ def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     temp_dir = tempfile.mkdtemp(prefix="metamanager_contract_")
     try:
         try:
-            from contract_generator import ContractGenerator
+            ContractGenerator = _load_attr_from_file(
+                ROOT_DIR / "contract_generator.py",
+                "ContractGenerator"
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Import ContractGenerator failed: {e}")
 
