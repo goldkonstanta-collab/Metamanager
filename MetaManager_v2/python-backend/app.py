@@ -401,6 +401,10 @@ def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
             "include_pir": _as_bool(payload.get("includePir"), default=False),
             "pir_count": payload.get("pirCount") or 1,
             "pir_price": payload.get("pirPrice") or 0,
+            "kp_manager_name": str(payload.get("kpManagerName", "")).strip(),
+            # Для web-генерации не включаем desktop-фиксы границ:
+            # они могли утолщать линии "Этап..." и блока "Итого ...".
+            "normalize_borders": False,
         }
 
         if smr_type == "с смр":

@@ -656,6 +656,50 @@ class KPGenerator:
                 for cell in row.cells:
                     self._cell_replace(cell, replacements)
 
+    def update_manager_signature(self, doc, manager_name):
+        """
+        Обновляет подпись менеджера на последней странице:
+        - "Ведущий менеджер проектов" -> "Менеджер проектов"
+        - "Гольдман Илья" -> значение из формы
+        """
+        clean_name = str(manager_name or '').strip()
+        if not clean_name:
+            return
+
+        title_replacements = {
+            'Ведущий менеджер проектов': 'Менеджер проектов',
+            'ведущий менеджер проектов': 'Менеджер проектов',
+        }
+        name_pattern = re.compile(r'гольдман\s+илья', flags=re.IGNORECASE)
+
+        def _update_para(para):
+            text = self._para_get_text(para)
+            if not text:
+                return
+
+            updated = text
+            for old, new in title_replacements.items():
+                if old in updated:
+                    updated = updated.replace(old, new)
+
+            # Явно меняем старое ФИО, если оно есть в шаблоне
+            updated = name_pattern.sub(clean_name, updated)
+            # И отдельный кейс для строки, где только ФИО
+            if updated.strip().lower() == 'гольдман илья':
+                updated = clean_name
+
+            if updated != text:
+                self._para_set_text(para, updated)
+
+        for para in doc.paragraphs:
+            _update_para(para)
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        _update_para(para)
+
     # -----------------------------------------------------------------------
     # Вычисление итогов
     # -----------------------------------------------------------------------
@@ -750,9 +794,13 @@ class KPGenerator:
             if key.startswith('stage') and key.endswith('_total'):
                 context[key] = self.format_price(value)
         self.replace_placeholders(doc, context)
+        self.update_manager_signature(doc, data.get('kp_manager_name'))
 
-        # Шаг 4.1: Нормализуем границы таблицы (убираем пропуски чёрных линий)
-        self.normalize_table_borders(doc)
+        # Шаг 4.1: Нормализация границ была добавлена для desktop PDF-экспорта.
+        # В web-потоке (LibreOffice на сервере) эти правки могут давать визуально "толстые"
+        # линии в Word/preview, поэтому делаем поведение управляемым через флаг.
+        if data.get('normalize_borders', True):
+            self.normalize_table_borders(doc)
 
         # Шаг 5: Сохранение
         # Очищаем запрещённые символы из имени файла

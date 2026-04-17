@@ -355,6 +355,7 @@ kpForm.addEventListener("submit", async (e) => {
   const payload = {
     kpName: kpForm.elements.kpName.value.trim(),
     kpTitle: kpForm.elements.kpTitle.value.trim(),
+    kpManagerName: kpForm.elements.kpManagerName.value.trim(),
     branch: kpForm.elements.branch.value,
     volume: kpForm.elements.volume.value,
     smrType: kpForm.elements.smrType.value,
