@@ -9,7 +9,7 @@ from typing import Any, Dict
 from urllib.parse import quote
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -448,7 +448,24 @@ def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.post("/generate/contract")
-def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def generate_contract(request: Request) -> Dict[str, Any]:
+    content_type = (request.headers.get("content-type") or "").lower()
+    payload: Dict[str, Any] = {}
+    uploaded_kp_bytes: bytes = b""
+    uploaded_kp_name = ""
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        for key, value in form.items():
+            if key == "kpFile":
+                if hasattr(value, "filename") and getattr(value, "filename", ""):
+                    uploaded_kp_name = str(getattr(value, "filename", "") or "")
+                    uploaded_kp_bytes = await value.read()
+                continue
+            payload[key] = str(value) if value is not None else ""
+    else:
+        payload = await request.json()
+
     if not payload.get("contractNumber") or not payload.get("customerShortname"):
         raise HTTPException(status_code=400, detail="contractNumber и customerShortname обязательны")
 
@@ -457,6 +474,16 @@ def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     temp_dir = tempfile.mkdtemp(prefix="metamanager_contract_")
     try:
+        uploaded_kp_path = ""
+        if uploaded_kp_bytes:
+            # Для iOS/веб загрузки всегда пишем во временную .docx и передаем в ContractGenerator.
+            safe_upload_name = re.sub(r'[/\\:*?"<>|]', "_", uploaded_kp_name or "uploaded_kp.docx")
+            if not safe_upload_name.lower().endswith(".docx"):
+                safe_upload_name += ".docx"
+            uploaded_kp_path = os.path.join(temp_dir, safe_upload_name)
+            with open(uploaded_kp_path, "wb") as f:
+                f.write(uploaded_kp_bytes)
+
         try:
             ContractGenerator = _load_attr_from_file(
                 ROOT_DIR / "contract_generator.py",
@@ -484,7 +511,7 @@ def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "customer_director_name": str(payload.get("customerDirectorName", "")).strip(),
             "customer_basis": str(payload.get("customerBasis", "")).strip(),
             "advance_percent": str(payload.get("advancePercent", "30")).strip() or "30",
-            "kp_file": "",  # В MVP веб-версии КП-файл пока не загружается.
+            "kp_file": uploaded_kp_path or str(payload.get("kpFile", "")).strip(),
             "include_work_address": _as_bool(payload.get("includeWorkAddress"), default=False),
             "work_address": str(payload.get("workAddress", "")).strip(),
         }
@@ -505,6 +532,10 @@ def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             },
             "files": {
                 "docx": os.path.basename(docx_path),
+            },
+            "kp": {
+                "attached": bool(contract_data.get("kp_file")),
+                "filename": os.path.basename(contract_data["kp_file"]) if contract_data.get("kp_file") else None,
             },
         }
     except HTTPException:

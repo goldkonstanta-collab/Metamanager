@@ -133,3 +133,18 @@ button {
   color: var(--muted);
   min-height: 16px;
 }
+
+.dropzone {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  color: var(--muted);
+  background: #0b1220;
+  cursor: pointer;
+}
+
+.dropzone.active {
+  border-color: var(--primary);
+  color: #c7ddff;
+}

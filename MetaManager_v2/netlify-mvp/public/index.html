@@ -204,6 +204,14 @@
             <input name="customerBasis" placeholder="Устава / доверенности №..." />
           </label>
 
+          <label>Файл КП для сметы и графика (Word .docx)
+            <input name="kpFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+          </label>
+          <div id="kp-upload-drop" class="dropzone" role="button" tabindex="0">
+            Перетащите сюда файл КП .docx или нажмите для выбора
+          </div>
+          <p id="contract-kp-status" class="hint" aria-live="polite"></p>
+
           <label class="check">
             <input name="includeWorkAddress" type="checkbox" />
             <span>Добавить адрес проведения работ</span>

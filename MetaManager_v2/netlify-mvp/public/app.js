@@ -20,8 +20,11 @@ const wellsPriceInput = kpForm.elements.wellsPrice;
 
 const contractInnInput = contractForm.elements.customerInn;
 const contractBikInput = contractForm.elements.customerBik;
+const contractKpFileInput = contractForm.elements.kpFile;
 const contractInnStatus = document.getElementById("contract-inn-status");
 const contractBikStatus = document.getElementById("contract-bik-status");
+const contractKpStatus = document.getElementById("contract-kp-status");
+const kpUploadDrop = document.getElementById("kp-upload-drop");
 
 let innLookupTimer = null;
 let bikLookupTimer = null;
@@ -118,6 +121,58 @@ function resolveApiUrl(directPath, proxyPath) {
     return `${directBackendBase}${directPath}`;
   }
   return proxyPath;
+}
+
+function updateKpFileStatus() {
+  const file = contractKpFileInput.files && contractKpFileInput.files[0];
+  if (!file) {
+    contractKpStatus.textContent = "";
+    return;
+  }
+  contractKpStatus.textContent = `Файл КП: ${file.name}`;
+}
+
+function applyDroppedKpFile(fileList) {
+  if (!fileList || !fileList.length) {
+    return;
+  }
+  const file = fileList[0];
+  if (!file.name.toLowerCase().endsWith(".docx")) {
+    contractKpStatus.textContent = "Ошибка: загрузите файл Word .docx";
+    return;
+  }
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    contractKpFileInput.files = dt.files;
+    updateKpFileStatus();
+  } catch (e) {
+    contractKpStatus.textContent = "Перетаскивание не поддерживается. Нажмите поле выбора файла.";
+  }
+}
+
+contractKpFileInput.addEventListener("change", updateKpFileStatus);
+
+if (kpUploadDrop) {
+  kpUploadDrop.addEventListener("click", () => contractKpFileInput.click());
+  kpUploadDrop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      contractKpFileInput.click();
+    }
+  });
+  kpUploadDrop.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    kpUploadDrop.classList.add("active");
+  });
+  kpUploadDrop.addEventListener("dragleave", () => {
+    kpUploadDrop.classList.remove("active");
+  });
+  kpUploadDrop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    kpUploadDrop.classList.remove("active");
+    applyDroppedKpFile(e.dataTransfer.files);
+  });
 }
 
 async function getJSON(url) {
@@ -278,6 +333,23 @@ async function postJSON(url, payload) {
   return data;
 }
 
+async function postFormData(url, formData) {
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData
+  });
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!response.ok) {
+    throw new Error(httpErrorMessage(data, `Request failed (${response.status})`));
+  }
+  return data;
+}
+
 kpForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const payload = {
@@ -338,10 +410,20 @@ contractForm.addEventListener("submit", async (e) => {
 
   setStatus("Отправка договора...");
   try {
-    const result = await postJSON(
-      resolveApiUrl("/generate/contract", "/api/contract"),
-      payload
-    );
+    const kpFile = contractKpFileInput.files && contractKpFileInput.files[0];
+    const endpoint = resolveApiUrl("/generate/contract", "/api/contract");
+    let result = null;
+
+    if (kpFile) {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(payload)) {
+        formData.append(key, value);
+      }
+      formData.append("kpFile", kpFile, kpFile.name);
+      result = await postFormData(endpoint, formData);
+    } else {
+      result = await postJSON(endpoint, payload);
+    }
     setStatus(result);
   } catch (err) {
     setStatus({ error: err.message });
