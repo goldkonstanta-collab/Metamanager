@@ -1,0 +1,13 @@
+{
+  "name": "metamanager-netlify-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Netlify MVP for mobile form and Telegram delivery",
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "latest"
+  }
+}

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaManager MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>MetaManager MVP</h1>
+      <p class="sub">Мобильная форма + отправка результата в Telegram</p>
+
+      <div class="tabs">
+        <button id="tab-kp" class="tab active" type="button">КП</button>
+        <button id="tab-contract" class="tab" type="button">Договор</button>
+      </div>
+
+      <section id="kp-section" class="card">
+        <h2>Коммерческое предложение</h2>
+        <form id="kp-form">
+          <label>Название файла КП
+            <input name="kpName" required />
+          </label>
+
+          <label>Титульный лист КП
+            <input name="kpTitle" required />
+          </label>
+
+          <label>Ветка
+            <select name="branch">
+              <option>хоз.пит</option>
+              <option>техническая лицензия</option>
+            </select>
+          </label>
+
+          <label>Объем
+            <select name="volume">
+              <option>до 100</option>
+              <option>100-500</option>
+              <option>500+</option>
+              <option>500+ с переоценкой запасов</option>
+            </select>
+          </label>
+
+          <label>Тип работ
+            <select name="smrType" id="smr-type">
+              <option value="без смр">без смр</option>
+              <option value="с смр">с смр</option>
+            </select>
+          </label>
+
+          <div id="no-smr-fields">
+            <label>Количество скважин
+              <input name="wellsCount" type="number" min="1" value="1" />
+            </label>
+          </div>
+
+          <div id="smr-fields" class="hidden">
+            <p class="section-title">Поля для СМР</p>
+
+            <label class="check">
+              <input name="includeWells" type="checkbox" checked />
+              <span>Скважины</span>
+            </label>
+            <div class="inline">
+              <label>Кол-во скважин
+                <input name="wellsCountSmr" type="number" min="1" value="1" />
+              </label>
+              <label>Конструктив
+                <input name="wellsDesign" />
+              </label>
+            </div>
+            <div class="inline">
+              <label>Глубина (м)
+                <input name="wellsDepth" type="number" min="0" />
+              </label>
+              <label>Цена за м
+                <input name="wellsPricePerMeter" type="number" min="0" />
+              </label>
+            </div>
+            <div class="inline">
+              <label>Цена за 1 скв
+                <input name="wellsPrice" type="number" min="0" />
+              </label>
+            </div>
+
+            <label class="check">
+              <input name="includePump" type="checkbox" checked />
+              <span>Насосное оборудование</span>
+            </label>
+            <label>Цена за 1 компл
+              <input name="pumpPrice" type="number" min="0" />
+            </label>
+
+            <label class="check">
+              <input name="includeBmz" type="checkbox" checked />
+              <span>БМЗ</span>
+            </label>
+            <div class="inline">
+              <label>Размеры БМЗ
+                <input name="bmzSize" />
+              </label>
+              <label>Стоимость БМЗ
+                <input name="bmzPrice" type="number" min="0" />
+              </label>
+            </div>
+          </div>
+
+          <label class="check">
+            <input name="includePir" type="checkbox" />
+            <span>Добавить ПИР</span>
+          </label>
+
+          <div id="pir-fields" class="inline hidden">
+            <label>Кол-во ПИР
+              <input name="pirCount" type="number" min="1" value="1" />
+            </label>
+            <label>Цена ПИР
+              <input name="pirPrice" type="number" min="0" step="1" />
+            </label>
+          </div>
+
+          <button class="primary" type="submit">Сформировать КП</button>
+        </form>
+      </section>
+
+      <section id="contract-section" class="card hidden">
+        <h2>Договор</h2>
+        <form id="contract-form">
+          <label>Номер договора
+            <input name="contractNumber" required placeholder="например 0025" />
+          </label>
+
+          <label>Краткое наименование заказчика
+            <input name="customerShortname" required />
+          </label>
+
+          <label>Полное наименование заказчика
+            <input name="customerFullname" />
+          </label>
+
+          <label>Юр./Факт./Почт. адрес
+            <input name="customerAddress" />
+          </label>
+
+          <div class="inline">
+            <label>ОГРН
+              <input name="customerOgrn" />
+            </label>
+            <label>ИНН
+              <input name="customerInn" />
+            </label>
+          </div>
+
+          <div class="inline">
+            <label>КПП
+              <input name="customerKpp" />
+            </label>
+            <label>БИК
+              <input name="customerBik" />
+            </label>
+          </div>
+
+          <div class="inline">
+            <label>Банк
+              <input name="customerBank" />
+            </label>
+            <label>Р/с
+              <input name="customerRs" />
+            </label>
+          </div>
+
+          <div class="inline">
+            <label>К/с
+              <input name="customerKs" />
+            </label>
+            <label>Телефон
+              <input name="customerPhone" />
+            </label>
+          </div>
+
+          <div class="inline">
+            <label>E-mail
+              <input name="customerEmail" />
+            </label>
+            <label>Аванс (%)
+              <input name="advancePercent" type="number" min="1" max="99" value="30" />
+            </label>
+          </div>
+
+          <div class="inline">
+            <label>Должность руководителя
+              <input name="customerDirectorTitle" />
+            </label>
+            <label>ФИО руководителя
+              <input name="customerDirectorName" />
+            </label>
+          </div>
+
+          <label>Основание
+            <input name="customerBasis" placeholder="Устава / доверенности №..." />
+          </label>
+
+          <label class="check">
+            <input name="includeWorkAddress" type="checkbox" />
+            <span>Добавить адрес проведения работ</span>
+          </label>
+
+          <label id="work-address-wrap" class="hidden">Адрес проведения работ
+            <input name="workAddress" />
+          </label>
+
+          <button class="primary" type="submit">Сформировать договор</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Статус</h2>
+        <pre id="status">Ожидание...</pre>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
