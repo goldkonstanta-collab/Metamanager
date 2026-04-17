@@ -27,6 +27,25 @@ let innLookupTimer = null;
 let bikLookupTimer = null;
 let innLookupToken = 0;
 let bikLookupToken = 0;
+let directBackendBase = "";
+
+async function initBackendBase() {
+  try {
+    const response = await fetch("/api/backend-url", { method: "GET" });
+    if (!response.ok) {
+      return;
+    }
+    const data = await response.json();
+    const candidate = typeof data?.backendUrl === "string" ? data.backendUrl.trim() : "";
+    if (candidate) {
+      directBackendBase = candidate.replace(/\/+$/, "");
+    }
+  } catch (e) {
+    // fallback to Netlify proxy routes
+  }
+}
+
+initBackendBase();
 
 function setStatus(obj) {
   statusEl.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
@@ -92,6 +111,13 @@ function httpErrorMessage(data, fallback) {
     }
   }
   return data.error || data.message || fallback;
+}
+
+function resolveApiUrl(directPath, proxyPath) {
+  if (directBackendBase) {
+    return `${directBackendBase}${directPath}`;
+  }
+  return proxyPath;
 }
 
 async function getJSON(url) {
@@ -160,7 +186,12 @@ async function maybeLookupCompanyByInn() {
   contractInnStatus.textContent = "Загрузка данных по ИНН...";
 
   try {
-    const result = await getJSON(`/api/lookup/company?inn=${encodeURIComponent(digits)}`);
+    const result = await getJSON(
+      resolveApiUrl(
+        `/lookup/company?inn=${encodeURIComponent(digits)}`,
+        `/api/lookup/company?inn=${encodeURIComponent(digits)}`
+      )
+    );
     if (token !== innLookupToken) {
       return;
     }
@@ -200,7 +231,12 @@ async function maybeLookupBankByBik() {
   contractBikStatus.textContent = "Поиск банка по БИК...";
 
   try {
-    const result = await getJSON(`/api/lookup/bank?bic=${encodeURIComponent(digits)}`);
+    const result = await getJSON(
+      resolveApiUrl(
+        `/lookup/bank?bic=${encodeURIComponent(digits)}`,
+        `/api/lookup/bank?bic=${encodeURIComponent(digits)}`
+      )
+    );
     if (token !== bikLookupToken) {
       return;
     }
@@ -269,7 +305,7 @@ kpForm.addEventListener("submit", async (e) => {
 
   setStatus("Отправка КП...");
   try {
-    const result = await postJSON("/api/kp", payload);
+    const result = await postJSON(resolveApiUrl("/generate/kp", "/api/kp"), payload);
     setStatus(result);
   } catch (err) {
     setStatus({ error: err.message });
@@ -302,7 +338,10 @@ contractForm.addEventListener("submit", async (e) => {
 
   setStatus("Отправка договора...");
   try {
-    const result = await postJSON("/api/contract", payload);
+    const result = await postJSON(
+      resolveApiUrl("/generate/contract", "/api/contract"),
+      payload
+    );
     setStatus(result);
   } catch (err) {
     setStatus({ error: err.message });

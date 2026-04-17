@@ -792,15 +792,19 @@ class KPGenerator:
                             [
                                 libreoffice_bin,
                                 "--headless",
+                                "--norestore",
+                                "--nolockcheck",
+                                "--nodefault",
+                                "--nofirststartwizard",
                                 "--convert-to",
-                                "pdf",
+                                "pdf:writer_pdf_Export",
                                 docx_path,
                                 "--outdir",
                                 save_dir,
                             ],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
-                            timeout=45,
+                            timeout=120,
                             check=False,
                         )
                         if not os.path.exists(pdf_path):

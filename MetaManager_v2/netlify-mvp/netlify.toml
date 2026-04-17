@@ -24,3 +24,8 @@
   from = "/api/lookup/bank"
   to = "/.netlify/functions/lookup-bank"
   status = 200
+
+[[redirects]]
+  from = "/api/backend-url"
+  to = "/.netlify/functions/backend-url"
+  status = 200
