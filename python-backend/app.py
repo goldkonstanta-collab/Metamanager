@@ -14,9 +14,6 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from generator import KPGenerator  # noqa: E402
-from contract_generator import ContractGenerator  # noqa: E402
-
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -74,6 +71,11 @@ def health() -> Dict[str, Any]:
     }
 
 
+@app.get("/")
+def root() -> Dict[str, Any]:
+    return {"ok": True, "service": "metamanager-backend"}
+
+
 @app.post("/generate/kp")
 def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not payload.get("kpName") or not payload.get("kpTitle"):
@@ -81,6 +83,11 @@ def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     temp_dir = tempfile.mkdtemp(prefix="metamanager_kp_")
     try:
+        try:
+            from generator import KPGenerator
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Import KPGenerator failed: {e}")
+
         smr_type = payload.get("smrType") or "без смр"
         kp_data = {
             "kp_name": str(payload.get("kpName", "")).strip(),
@@ -151,6 +158,11 @@ def generate_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     temp_dir = tempfile.mkdtemp(prefix="metamanager_contract_")
     try:
+        try:
+            from contract_generator import ContractGenerator
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Import ContractGenerator failed: {e}")
+
         contract_data = {
             "contract_number": str(payload.get("contractNumber", "")).strip(),
             "save_dir": temp_dir,
