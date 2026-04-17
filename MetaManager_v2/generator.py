@@ -1,6 +1,8 @@
 import os
 import copy
 import re
+import shutil
+import subprocess
 from datetime import datetime
 from docx import Document
 from docx.oxml.ns import qn
@@ -782,7 +784,27 @@ class KPGenerator:
                     pdf_path = None
             else:
                 try:
-                    os.system(f'libreoffice --headless --convert-to pdf "{docx_path}" --outdir "{save_dir}"')
+                    libreoffice_bin = shutil.which("libreoffice") or shutil.which("soffice")
+                    if not libreoffice_bin:
+                        pdf_path = None
+                    else:
+                        subprocess.run(
+                            [
+                                libreoffice_bin,
+                                "--headless",
+                                "--convert-to",
+                                "pdf",
+                                docx_path,
+                                "--outdir",
+                                save_dir,
+                            ],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=45,
+                            check=False,
+                        )
+                        if not os.path.exists(pdf_path):
+                            pdf_path = None
                 except Exception:
                     pdf_path = None
 
