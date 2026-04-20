@@ -659,17 +659,13 @@ class KPGenerator:
     def update_manager_signature(self, doc, manager_name):
         """
         Обновляет подпись менеджера на последней странице:
-        - "Ведущий менеджер проектов" -> "Менеджер проектов"
-        - "Гольдман Илья" -> значение из формы
+        - "Ведущий менеджер проектов" -> "Менеджер проектов" (всегда).
+        - "Гольдман Илья" -> значение из формы, если оно заполнено.
+          Если поле пустое — ФИО в шаблоне не трогаем.
         """
         clean_name = str(manager_name or '').strip()
-        if not clean_name:
-            return
 
-        title_replacements = {
-            'Ведущий менеджер проектов': 'Менеджер проектов',
-            'ведущий менеджер проектов': 'Менеджер проектов',
-        }
+        title_pattern = re.compile(r'ведущий\s+менеджер\s+проектов', flags=re.IGNORECASE)
         name_pattern = re.compile(r'гольдман\s+илья', flags=re.IGNORECASE)
 
         def _update_para(para):
@@ -677,16 +673,12 @@ class KPGenerator:
             if not text:
                 return
 
-            updated = text
-            for old, new in title_replacements.items():
-                if old in updated:
-                    updated = updated.replace(old, new)
+            updated = title_pattern.sub('Менеджер проектов', text)
 
-            # Явно меняем старое ФИО, если оно есть в шаблоне
-            updated = name_pattern.sub(clean_name, updated)
-            # И отдельный кейс для строки, где только ФИО
-            if updated.strip().lower() == 'гольдман илья':
-                updated = clean_name
+            if clean_name:
+                updated = name_pattern.sub(clean_name, updated)
+                if updated.strip().lower() == 'гольдман илья':
+                    updated = clean_name
 
             if updated != text:
                 self._para_set_text(para, updated)
