@@ -20,6 +20,7 @@ if str(ROOT_DIR) not in sys.path:
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 CHECKO_API_KEY = os.getenv("CHECKO_API_KEY", "")
 
 app = FastAPI(title="MetaManager Backend")
@@ -60,6 +61,66 @@ def _send_telegram_message(text: str, chat_id: str = "") -> None:
     resp = requests.post(url, json={"chat_id": target, "text": text}, timeout=20)
     if not resp.ok:
         raise RuntimeError(f"Telegram sendMessage failed: {resp.status_code} {resp.text}")
+
+
+def _send_telegram_reply(chat_id: str, text: str, reply_markup: Dict[str, Any] | None = None) -> None:
+    """Простой sendMessage (HTML) — используется ботом-ответчиком."""
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    body: Dict[str, Any] = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    try:
+        requests.post(url, json=body, timeout=20)
+    except Exception:
+        pass
+
+
+def _answer_callback_query(callback_query_id: str, text: str = "") -> None:
+    if not TELEGRAM_BOT_TOKEN or not callback_query_id:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
+    try:
+        requests.post(
+            url,
+            json={"callback_query_id": callback_query_id, "text": text},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
+def _bot_welcome_text() -> str:
+    return (
+        "Привет! Я бот MetaManager.\n\n"
+        "Нажмите кнопку <b>🔑 Получить ключ</b> ниже — я пришлю ваш "
+        "<code>chat_id</code>. Его нужно вставить на сайте MetaManager в поле "
+        "<b>Telegram chat ID</b> и нажать <b>Запомнить</b>.\n\n"
+        "После этого все сгенерированные КП и договоры будут приходить в этот чат."
+    )
+
+
+def _bot_key_text(chat_id: int | str) -> str:
+    return (
+        "Ваш ключ (chat ID):\n"
+        f"<code>{chat_id}</code>\n\n"
+        "Скопируйте его, откройте сайт MetaManager, вставьте в поле "
+        "<b>Telegram chat ID</b> и нажмите <b>Запомнить</b>."
+    )
+
+
+def _bot_main_keyboard() -> Dict[str, Any]:
+    return {
+        "inline_keyboard": [
+            [{"text": "🔑 Получить ключ", "callback_data": "get_key"}]
+        ]
+    }
 
 
 def _send_telegram_document(file_path: str, caption: str = "", chat_id: str = "") -> None:
@@ -325,6 +386,7 @@ def health() -> Dict[str, Any]:
         "ok": True,
         "telegram_bot_configured": _telegram_bot_configured(),
         "telegram_default_chat_configured": bool((TELEGRAM_CHAT_ID or "").strip()),
+        "telegram_webhook_secret_configured": bool((TELEGRAM_WEBHOOK_SECRET or "").strip()),
         "checko_configured": bool((CHECKO_API_KEY or "").strip()),
         "paths": {
             "root_dir": str(ROOT_DIR),
@@ -338,6 +400,83 @@ def health() -> Dict[str, Any]:
 @app.get("/")
 def root() -> Dict[str, Any]:
     return {"ok": True, "service": "metamanager-backend"}
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request) -> Dict[str, Any]:
+    """
+    Принимает апдейты от Telegram (webhook) и отвечает на:
+    - /start, /help, /key, /id — присылает chat_id пользователю
+      вместе с inline-кнопкой «🔑 Получить ключ».
+    - callback_query с data=="get_key" — присылает chat_id.
+
+    Защита: если задан TELEGRAM_WEBHOOK_SECRET, Telegram обязан прислать
+    заголовок X-Telegram-Bot-Api-Secret-Token с тем же значением
+    (см. setWebhook?secret_token=...).
+    """
+    if not _telegram_bot_configured():
+        raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+
+    if TELEGRAM_WEBHOOK_SECRET:
+        sent = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if sent != TELEGRAM_WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="Bad webhook secret")
+
+    try:
+        update = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    if not isinstance(update, dict):
+        return {"ok": True}
+
+    message = update.get("message") or update.get("edited_message")
+    callback_query = update.get("callback_query")
+
+    if callback_query and (callback_query.get("data") or "") == "get_key":
+        cq_id = str(callback_query.get("id") or "")
+        chat = (callback_query.get("message") or {}).get("chat") or {}
+        chat_id = chat.get("id")
+        if chat_id is not None:
+            _answer_callback_query(cq_id, "Ключ готов")
+            _send_telegram_reply(
+                str(chat_id),
+                _bot_key_text(chat_id),
+                reply_markup=_bot_main_keyboard(),
+            )
+        return {"ok": True}
+
+    if message:
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        text = (message.get("text") or "").strip()
+        if chat_id is None:
+            return {"ok": True}
+
+        lowered = text.lower()
+        cmd = lowered.split()[0] if lowered else ""
+        cmd = cmd.split("@", 1)[0] if cmd.startswith("/") else cmd
+
+        if cmd in {"/start", "/help"}:
+            _send_telegram_reply(
+                str(chat_id),
+                _bot_welcome_text(),
+                reply_markup=_bot_main_keyboard(),
+            )
+        elif cmd in {"/key", "/id"}:
+            _send_telegram_reply(
+                str(chat_id),
+                _bot_key_text(chat_id),
+                reply_markup=_bot_main_keyboard(),
+            )
+        else:
+            _send_telegram_reply(
+                str(chat_id),
+                _bot_welcome_text(),
+                reply_markup=_bot_main_keyboard(),
+            )
+
+    return {"ok": True}
 
 
 @app.get("/lookup/company")
