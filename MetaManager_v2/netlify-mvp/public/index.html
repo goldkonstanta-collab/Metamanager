@@ -22,6 +22,30 @@
         <button id="tab-contract" class="tab" type="button">Договор</button>
       </div>
 
+      <section class="card" id="telegram-card">
+        <h2>Telegram</h2>
+        <p class="sub" style="margin-top:0">
+          Получите свой ключ в боте
+          <a href="https://t.me/gidroservbot" target="_blank" rel="noreferrer">@gidroservbot</a>
+          (команда <code>/start</code> или кнопка «Получить ключ»). Вставьте его ниже,
+          и готовые документы будут приходить лично вам.
+        </p>
+        <label>Ваш Telegram chat ID
+          <input
+            id="telegram-chat-id"
+            name="telegramChatId"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="например 123456789"
+          />
+        </label>
+        <div class="inline">
+          <button id="telegram-save" type="button">Запомнить</button>
+          <button id="telegram-clear" type="button">Сбросить</button>
+        </div>
+        <p id="telegram-status" class="hint" aria-live="polite"></p>
+      </section>
+
       <section id="kp-section" class="card">
         <h2>Коммерческое предложение</h2>
         <form id="kp-form">

@@ -32,26 +32,44 @@ app.add_middleware(
 )
 
 
-def _telegram_configured() -> bool:
-    return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+def _telegram_bot_configured() -> bool:
+    return bool(TELEGRAM_BOT_TOKEN)
 
 
-def _send_telegram_message(text: str) -> None:
-    if not _telegram_configured():
+def _resolve_chat_id(override: str = "") -> str:
+    """
+    Выбирает chat_id для отправки:
+    - если пользователь передал свой chat_id с фронта — используем его,
+    - иначе — падает на дефолтный TELEGRAM_CHAT_ID из переменных окружения.
+    """
+    override = (override or "").strip()
+    if override:
+        return override
+    return (TELEGRAM_CHAT_ID or "").strip()
+
+
+def _telegram_configured(chat_id: str = "") -> bool:
+    return bool(TELEGRAM_BOT_TOKEN and _resolve_chat_id(chat_id))
+
+
+def _send_telegram_message(text: str, chat_id: str = "") -> None:
+    target = _resolve_chat_id(chat_id)
+    if not TELEGRAM_BOT_TOKEN or not target:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=20)
+    resp = requests.post(url, json={"chat_id": target, "text": text}, timeout=20)
     if not resp.ok:
         raise RuntimeError(f"Telegram sendMessage failed: {resp.status_code} {resp.text}")
 
 
-def _send_telegram_document(file_path: str, caption: str = "") -> None:
-    if not _telegram_configured():
+def _send_telegram_document(file_path: str, caption: str = "", chat_id: str = "") -> None:
+    target = _resolve_chat_id(chat_id)
+    if not TELEGRAM_BOT_TOKEN or not target:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
     with open(file_path, "rb") as f:
         files = {"document": (os.path.basename(file_path), f)}
-        data = {"chat_id": TELEGRAM_CHAT_ID}
+        data = {"chat_id": target}
         if caption:
             data["caption"] = caption
         resp = requests.post(url, data=data, files=files, timeout=90)
@@ -305,7 +323,8 @@ def health() -> Dict[str, Any]:
     templates_path = ROOT_DIR / "templates"
     return {
         "ok": True,
-        "telegram_configured": _telegram_configured(),
+        "telegram_bot_configured": _telegram_bot_configured(),
+        "telegram_default_chat_configured": bool((TELEGRAM_CHAT_ID or "").strip()),
         "checko_configured": bool((CHECKO_API_KEY or "").strip()),
         "paths": {
             "root_dir": str(ROOT_DIR),
@@ -422,21 +441,25 @@ def generate_kp(payload: Dict[str, Any]) -> Dict[str, Any]:
         else:
             kp_data["wells_count"] = payload.get("wellsCount") or 1
 
+        user_chat_id = str(payload.get("telegramChatId", "") or "").strip()
+
         generator = KPGenerator()
         docx_path, pdf_path = generator.create_kp(kp_data)
 
-        _send_telegram_message(f"Новое КП: {kp_data['kp_name']}")
-        _send_telegram_document(docx_path, caption="КП (Word)")
+        _send_telegram_message(f"Новое КП: {kp_data['kp_name']}", chat_id=user_chat_id)
+        _send_telegram_document(docx_path, caption="КП (Word)", chat_id=user_chat_id)
         if pdf_path and os.path.exists(pdf_path):
-            _send_telegram_document(pdf_path, caption="КП (PDF)")
+            _send_telegram_document(pdf_path, caption="КП (PDF)", chat_id=user_chat_id)
 
+        target_chat_id = _resolve_chat_id(user_chat_id)
         return {
             "ok": True,
             "type": "kp",
             "telegram": {
-                "configured": _telegram_configured(),
-                "sent": _telegram_configured(),
-                "targetChatId": TELEGRAM_CHAT_ID if TELEGRAM_CHAT_ID else None,
+                "configured": _telegram_configured(user_chat_id),
+                "sent": _telegram_configured(user_chat_id),
+                "targetChatId": target_chat_id or None,
+                "userChatIdUsed": bool(user_chat_id),
             },
             "files": {
                 "docx": os.path.basename(docx_path),
@@ -520,19 +543,26 @@ async def generate_contract(request: Request) -> Dict[str, Any]:
             "work_address": str(payload.get("workAddress", "")).strip(),
         }
 
+        user_chat_id = str(payload.get("telegramChatId", "") or "").strip()
+
         generator = ContractGenerator()
         docx_path = generator.create_contract(contract_data)
 
-        _send_telegram_message(f"Новый договор: 0ЦЦБ-{contract_data['contract_number']}")
-        _send_telegram_document(docx_path, caption="Договор (Word)")
+        _send_telegram_message(
+            f"Новый договор: 0ЦЦБ-{contract_data['contract_number']}",
+            chat_id=user_chat_id,
+        )
+        _send_telegram_document(docx_path, caption="Договор (Word)", chat_id=user_chat_id)
 
+        target_chat_id = _resolve_chat_id(user_chat_id)
         return {
             "ok": True,
             "type": "contract",
             "telegram": {
-                "configured": _telegram_configured(),
-                "sent": _telegram_configured(),
-                "targetChatId": TELEGRAM_CHAT_ID if TELEGRAM_CHAT_ID else None,
+                "configured": _telegram_configured(user_chat_id),
+                "sent": _telegram_configured(user_chat_id),
+                "targetChatId": target_chat_id or None,
+                "userChatIdUsed": bool(user_chat_id),
             },
             "files": {
                 "docx": os.path.basename(docx_path),

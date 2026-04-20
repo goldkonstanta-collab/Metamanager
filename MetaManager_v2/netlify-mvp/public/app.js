@@ -26,6 +26,69 @@ const contractBikStatus = document.getElementById("contract-bik-status");
 const contractKpStatus = document.getElementById("contract-kp-status");
 const kpUploadDrop = document.getElementById("kp-upload-drop");
 
+const telegramChatIdInput = document.getElementById("telegram-chat-id");
+const telegramSaveBtn = document.getElementById("telegram-save");
+const telegramClearBtn = document.getElementById("telegram-clear");
+const telegramStatusEl = document.getElementById("telegram-status");
+
+const TELEGRAM_CHAT_ID_KEY = "metaManager.telegramChatId";
+
+function getStoredTelegramChatId() {
+  try {
+    return (localStorage.getItem(TELEGRAM_CHAT_ID_KEY) || "").trim();
+  } catch (e) {
+    return "";
+  }
+}
+
+function setTelegramStatusText(text, tone) {
+  if (!telegramStatusEl) return;
+  telegramStatusEl.textContent = text || "";
+  telegramStatusEl.dataset.tone = tone || "";
+}
+
+function initTelegramChatId() {
+  if (!telegramChatIdInput) return;
+  const stored = getStoredTelegramChatId();
+  if (stored) {
+    telegramChatIdInput.value = stored;
+    setTelegramStatusText(`Сохранено: ${stored}`, "ok");
+  } else {
+    setTelegramStatusText("Ключ не задан — документы уйдут в общий чат бота.");
+  }
+
+  telegramSaveBtn?.addEventListener("click", () => {
+    const value = (telegramChatIdInput.value || "").trim();
+    if (!value) {
+      setTelegramStatusText("Введите chat ID перед сохранением.", "err");
+      return;
+    }
+    if (!/^-?\d+$/.test(value)) {
+      setTelegramStatusText("Chat ID должен состоять только из цифр.", "err");
+      return;
+    }
+    try {
+      localStorage.setItem(TELEGRAM_CHAT_ID_KEY, value);
+      setTelegramStatusText(`Сохранено: ${value}`, "ok");
+    } catch (e) {
+      setTelegramStatusText("Не удалось сохранить в этом браузере.", "err");
+    }
+  });
+
+  telegramClearBtn?.addEventListener("click", () => {
+    try {
+      localStorage.removeItem(TELEGRAM_CHAT_ID_KEY);
+    } catch (e) {}
+    telegramChatIdInput.value = "";
+    setTelegramStatusText("Ключ сброшен.");
+  });
+}
+
+function currentTelegramChatId() {
+  const typed = (telegramChatIdInput?.value || "").trim();
+  return typed || getStoredTelegramChatId();
+}
+
 let innLookupTimer = null;
 let bikLookupTimer = null;
 let innLookupToken = 0;
@@ -49,6 +112,7 @@ async function initBackendBase() {
 }
 
 initBackendBase();
+initTelegramChatId();
 
 function setStatus(obj) {
   statusEl.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
@@ -373,7 +437,8 @@ kpForm.addEventListener("submit", async (e) => {
     bmzPrice: kpForm.elements.bmzPrice.value.trim(),
     includePir: kpForm.elements.includePir.checked,
     pirCount: Number(kpForm.elements.pirCount.value || 1),
-    pirPrice: Number(kpForm.elements.pirPrice.value || 0)
+    pirPrice: Number(kpForm.elements.pirPrice.value || 0),
+    telegramChatId: currentTelegramChatId()
   };
 
   setStatus("Отправка КП...");
@@ -406,7 +471,8 @@ contractForm.addEventListener("submit", async (e) => {
     customerDirectorName: contractForm.elements.customerDirectorName.value.trim(),
     customerBasis: contractForm.elements.customerBasis.value.trim(),
     includeWorkAddress: contractForm.elements.includeWorkAddress.checked,
-    workAddress: contractForm.elements.workAddress.value.trim()
+    workAddress: contractForm.elements.workAddress.value.trim(),
+    telegramChatId: currentTelegramChatId()
   };
 
   setStatus("Отправка договора...");

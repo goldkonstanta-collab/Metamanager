@@ -148,3 +148,20 @@ button {
   border-color: var(--primary);
   color: #c7ddff;
 }
+
+#telegram-card .sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#telegram-card .sub a {
+  color: var(--primary);
+}
+
+#telegram-status[data-tone="ok"] {
+  color: #86efac;
+}
+
+#telegram-status[data-tone="err"] {
+  color: #fca5a5;
+}
